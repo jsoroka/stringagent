@@ -1,5 +1,10 @@
 package io.github.jsoroka.stringagent;
 
+import javassist.ClassPool;
+import javassist.CtClass;
+import javassist.CtMethod;
+
+import java.io.ByteArrayInputStream;
 import java.lang.instrument.ClassFileTransformer;
 import java.lang.instrument.Instrumentation;
 import java.lang.instrument.UnmodifiableClassException;
@@ -26,6 +31,19 @@ public class AgentMain implements ClassFileTransformer {
 
     @Override
     public byte[] transform(ClassLoader loader, String className, Class<?> classBeingRedefined, ProtectionDomain protectionDomain, byte[] classfileBuffer) {
-        return classfileBuffer;
+        try {
+            ClassPool cp = ClassPool.getDefault();
+            if ("io/javalin/core/JavalinServlet".equals(className)) {
+                CtClass cc = cp.makeClass(new ByteArrayInputStream(classfileBuffer));
+                CtMethod m = cc.getDeclaredMethod("service");
+                cp.importPackage("javax.servlet.http");
+                m.insertAfter("((HttpServletResponse)$2).setHeader(\"X-StringAgent-ID\", \"\" + java.lang.Math.random());");
+                classfileBuffer = cc.toBytecode();
+                cc.detach();
+            }
+            return classfileBuffer;
+        } catch (Throwable t) {
+            throw new AssertionError(t);
+        }
     }
 }

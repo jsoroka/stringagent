@@ -32,6 +32,12 @@
 
   <dependencies>
     <dependency>
+      <groupId>org.javassist</groupId>
+      <artifactId>javassist</artifactId>
+      <version>3.23.0-GA</version>
+    </dependency>
+
+    <dependency>
       <!-- for access to com.sun.tools.attach.VirtualMachine.loadAgent(String jar) -->
       <!-- https://stackoverflow.com/a/35250119/7433341 -->
       <groupId>com.github.olivergondza</groupId>
