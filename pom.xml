@@ -32,6 +32,15 @@
 
   <dependencies>
     <dependency>
+      <!-- for access to com.sun.tools.attach.VirtualMachine.loadAgent(String jar) -->
+      <!-- https://stackoverflow.com/a/35250119/7433341 -->
+      <groupId>com.github.olivergondza</groupId>
+      <artifactId>maven-jdk-tools-wrapper</artifactId>
+      <version>0.1</version>
+      <scope>test</scope>
+    </dependency>
+
+    <dependency>
       <groupId>io.javalin</groupId>
       <artifactId>javalin</artifactId>
       <version>1.3.0</version>

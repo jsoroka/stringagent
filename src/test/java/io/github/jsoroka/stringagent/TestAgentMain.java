@@ -3,11 +3,15 @@ package io.github.jsoroka.stringagent;
 import io.javalin.Context;
 import io.javalin.Handler;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import io.javalin.Javalin;
 
+import java.io.File;
 import java.io.IOException;
+import java.lang.management.ManagementFactory;
+import java.lang.reflect.Method;
 import java.net.URL;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -16,6 +20,16 @@ public class TestAgentMain {
 
     private Javalin server;
     private int port = 1024 + (int) (Math.random()*30000);
+
+    @BeforeAll
+    public static void loadAgent() throws Exception {
+        Class<?> vmToolClass = Class.forName("com.sun.tools.attach.VirtualMachine");
+        Method vmAttach = vmToolClass.getMethod("attach", String.class);
+        String selfPid = ManagementFactory.getRuntimeMXBean().getName().split("@")[0];
+        Object selfVm = vmAttach.invoke(null, selfPid);
+        Method loadAgent = vmToolClass.getMethod("loadAgent", String.class, String.class);
+        loadAgent.invoke(selfVm, new File("src/test/resources/dummy-agent.jar").getAbsolutePath(), "");
+    }
 
     @BeforeEach
     public void startWebServer() {
