@@ -65,4 +65,18 @@ public class TestAgentMain {
         assertNotEquals("0", allocationCount, "String allocation count should probably never be zero?");
     }
 
+    @Test
+    public void eachResponseShouldHaveAValidElapsedTimeHeader() throws IOException {
+        final int howLongMs = 1000 + (int)(Math.random()*2000);
+        server.get("/sleep/:howLongMs", new Handler() { @Override public void handle(Context ctx) throws Exception {
+            Thread.sleep(Integer.parseInt(ctx.param("howLongMs")));
+        }});
+        URL url = new URL("http://localhost:" + port + "/sleep/" + howLongMs);
+        long elapsedTimeNanos = Long.parseLong(url.openConnection().getHeaderField("X-StringAgent-Elapsed"));
+        int elapsedTimeMs = (int)(elapsedTimeNanos/1000000);
+        assertTrue(elapsedTimeMs > howLongMs, "Asked for " + howLongMs + " but only got " + elapsedTimeMs);
+        int absoluteError = Math.abs(elapsedTimeMs - howLongMs);
+        assertTrue(absoluteError < 500, "Asked for " + howLongMs + " but got " + elapsedTimeMs + ", error of " + absoluteError + " is more than 500ms.");
+    }
+
 }

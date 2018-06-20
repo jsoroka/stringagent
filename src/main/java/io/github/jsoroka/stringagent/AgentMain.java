@@ -43,8 +43,10 @@ public class AgentMain implements ClassFileTransformer {
                 cp.importPackage("javax.servlet.http");
                 cp.importPackage("io.github.jsoroka.stringagent");
                 m.insertBefore("AgentMain.clearCount();");
+                m.insertBefore("AgentMain.startTimer();");
                 m.insertAfter("((HttpServletResponse)$2).setHeader(\"X-StringAgent-ID\", \"\" + java.lang.Math.random());");
                 m.insertAfter("((HttpServletResponse)$2).setHeader(\"X-StringAgent-Count\", \"\" + AgentMain.getCount());");
+                m.insertAfter("((HttpServletResponse)$2).setHeader(\"X-StringAgent-Elapsed\", \"\" + AgentMain.stopTimer());");
                 classfileBuffer = cc.toBytecode();
                 cc.detach();
             } else if ("java/lang/String".equals(className)) {
@@ -104,5 +106,15 @@ public class AgentMain implements ClassFileTransformer {
             }
             return count[0];
         }
+    }
+
+    private static ThreadLocal<Long> threadLocalTimer = new ThreadLocal<Long>();
+
+    public static void startTimer() {
+        threadLocalTimer.set(System.nanoTime());
+    }
+
+    public static long stopTimer() {
+        return System.nanoTime() - threadLocalTimer.get();
     }
 }
