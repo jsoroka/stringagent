@@ -19,6 +19,8 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public class AgentMain implements ClassFileTransformer {
 
+    private static final boolean ON_BOOTCLASSPATH = AgentMain.class.getClassLoader() == null;
+
     private static final String SYSPROP = "StringAgent-AllocationCounts";
 
     private static ConcurrentHashMap<String,Set<String>> CODESOURCES = new ConcurrentHashMap<String,Set<String>>();
@@ -28,6 +30,8 @@ public class AgentMain implements ClassFileTransformer {
     }
 
     public static void agentmain(String args, Instrumentation instrumentation) throws UnmodifiableClassException {
+        if (!ON_BOOTCLASSPATH) { /* TODO warn about degraded performance, give diagnosis and suggested fixes */ }
+
         // register ourselves as a classfile transforming agent
         instrumentation.addTransformer(new AgentMain(), true);
 
@@ -88,18 +92,22 @@ public class AgentMain implements ClassFileTransformer {
                     if (!ctor.callsSuper()) { // don't count ctors that just call sibling ctors
                         continue;
                     }
-                    ctor.insertAfter("synchronized (System.class) { " +
-                        "ConcurrentHashMap threadMap = (ConcurrentHashMap)" +
-                        "    System.getProperties().get(\"" + SYSPROP + "\");" +
-                        "if (threadMap == null) {" +
-                        "    threadMap = new ConcurrentHashMap();" +
-                        "    System.getProperties().put(\"" + SYSPROP +"\", threadMap);" +
-                        "}" +
-                        "Integer id = Integer.valueOf(System.identityHashCode(Thread.currentThread()));" +
-                        "int[] count = (int[])threadMap.get(id);" +
-                        "if (count == null) { threadMap.put(id, count = new int[1]); }" +
-                        "count[0]++;" +
-                    "}", true);
+                    if (ON_BOOTCLASSPATH) {
+                        ctor.insertAfter("io.github.jsoroka.stringagent.AgentMain.incrementCount();");
+                    } else {
+                        ctor.insertAfter("synchronized (System.class) { " +
+                            "ConcurrentHashMap threadMap = (ConcurrentHashMap)" +
+                            "    System.getProperties().get(\"" + SYSPROP + "\");" +
+                            "if (threadMap == null) {" +
+                            "    threadMap = new ConcurrentHashMap();" +
+                            "    System.getProperties().put(\"" + SYSPROP +"\", threadMap);" +
+                            "}" +
+                            "Integer id = Integer.valueOf(System.identityHashCode(Thread.currentThread()));" +
+                            "int[] count = (int[])threadMap.get(id);" +
+                            "if (count == null) { threadMap.put(id, count = new int[1]); }" +
+                            "count[0]++;" +
+                        "}", true);
+                    }
                 }
                 classfileBuffer = cc.toBytecode();
                 cc.detach();
@@ -110,34 +118,56 @@ public class AgentMain implements ClassFileTransformer {
         }
     }
 
+    private static ThreadLocal<int[]> threadLocalAllocationCount = new ThreadLocal<int[]>();
+
     public static void clearCount() {
-        synchronized (System.class) {
+        setCount(0);
+    }
+
+    public static void incrementCount() {
+        setCount(getCount() + 1);
+    }
+
+    private static void setCount(int newCount) {
+        int[] count;
+        if (ON_BOOTCLASSPATH) {
+            count = threadLocalAllocationCount.get();
+            if (count == null) {
+                threadLocalAllocationCount.set(count = new int[1]);
+            }
+        } else synchronized (System.class) {
             ConcurrentHashMap<Integer,int[]> threadMap = (ConcurrentHashMap)System.getProperties().get(SYSPROP);
             if (threadMap == null) {
                 System.getProperties().put(SYSPROP, threadMap = new ConcurrentHashMap<Integer,int[]>());
             }
             int id = System.identityHashCode(Thread.currentThread());
-            int[] count = threadMap.get(id);
+            count = threadMap.get(id);
             if (count == null) {
                 threadMap.put(id, count = new int[1]);
             }
-            count[0] = 0;
         }
+        count[0] = newCount;
     }
 
     public static int getCount() {
-        synchronized (System.class) {
+        int[] count;
+        if (ON_BOOTCLASSPATH) {
+            count = threadLocalAllocationCount.get();
+            if (count == null) {
+                threadLocalAllocationCount.set(count = new int[1]);
+            }
+        } else synchronized (System.class) {
             ConcurrentHashMap<Integer,int[]> threadMap = (ConcurrentHashMap)System.getProperties().get(SYSPROP);
             if (threadMap == null) {
                 System.getProperties().put(SYSPROP, threadMap = new ConcurrentHashMap<Integer,int[]>());
             }
             int id = System.identityHashCode(Thread.currentThread());
-            int[] count = threadMap.get(id);
+            count = threadMap.get(id);
             if (count == null) {
                 threadMap.put(id, count = new int[1]);
             }
-            return count[0];
         }
+        return count[0];
     }
 
     private static ThreadLocal<Long> threadLocalTimer = new ThreadLocal<Long>();

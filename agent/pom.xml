@@ -28,6 +28,7 @@
             <manifestEntries>
               <Agent-Class>io.github.jsoroka.stringagent.AgentMain</Agent-Class>
               <Premain-Class>io.github.jsoroka.stringagent.AgentMain</Premain-Class>
+              <Boot-Class-Path>${project.artifactId}-${project.version}.jar</Boot-Class-Path>
               <Can-Retransform-Classes>true</Can-Retransform-Classes>
             </manifestEntries>
           </archive>
