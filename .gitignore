@@ -4,3 +4,5 @@
 /.idea
 *tmp
 /target
+/agent/target
+tests/target
