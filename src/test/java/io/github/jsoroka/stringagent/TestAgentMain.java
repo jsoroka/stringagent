@@ -28,7 +28,7 @@ public class TestAgentMain {
         Class<?> vmToolClass = Class.forName("com.sun.tools.attach.VirtualMachine");
         Method vmAttach = vmToolClass.getMethod("attach", String.class);
         String selfPid = ManagementFactory.getRuntimeMXBean().getName().split("@")[0];
-        Object selfVm = vmAttach.invoke(null, selfPid);
+        Object selfVm = vmAttach.invoke(null, selfPid); // TODO throws ex'n in jdk 9&10: "Can not attach to current VM"
         Method loadAgent = vmToolClass.getMethod("loadAgent", String.class, String.class);
         loadAgent.invoke(selfVm, new File("src/test/resources/dummy-agent.jar").getAbsolutePath(), "");
     }
