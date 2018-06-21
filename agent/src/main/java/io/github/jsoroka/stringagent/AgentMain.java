@@ -169,16 +169,14 @@ public class AgentMain implements ClassFileTransformer {
 
     public static int getClassesLoaded() {
         int result = 0;
-        ConcurrentHashMap<String,Set<String>> snapshot = new ConcurrentHashMap<String, Set<String>>(CODESOURCES);
-        for (Set<String> classes : snapshot.values())
+        for (Set<String> classes : CODESOURCES.values())
             result += classes.size();
         return result;
     }
 
     public static int getMethodsLoaded() {
         int result = 0;
-        ConcurrentHashMap<String,Set<String>> snapshot = new ConcurrentHashMap<String, Set<String>>(CODESOURCES);
-        for (Set<String> classes : snapshot.values()) {
+        for (Set<String> classes : CODESOURCES.values()) {
             for (String classNameAndMethodCount : classes) {
                 String methodCount = classNameAndMethodCount.substring(classNameAndMethodCount.indexOf('@') + 1);
                 result += Integer.parseInt(methodCount);
