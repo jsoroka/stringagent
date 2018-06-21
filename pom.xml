@@ -19,6 +19,9 @@
       <plugin>
         <artifactId>maven-surefire-plugin</artifactId>
         <version>2.21.0</version>
+        <configuration>
+          <argLine>-javaagent:${project.build.directory}/${project.artifactId}-${project.version}.jar</argLine>
+        </configuration>
         <dependencies>
           <dependency>
             <groupId>org.junit.platform</groupId>
@@ -27,6 +30,40 @@
           </dependency>
         </dependencies>
       </plugin>
+
+      <plugin>
+        <artifactId>maven-jar-plugin</artifactId>
+        <configuration>
+          <archive>
+            <manifestEntries>
+              <Agent-Class>io.github.jsoroka.stringagent.AgentMain</Agent-Class>
+              <Premain-Class>io.github.jsoroka.stringagent.AgentMain</Premain-Class>
+              <Can-Retransform-Classes>true</Can-Retransform-Classes>
+            </manifestEntries>
+          </archive>
+        </configuration>
+      </plugin>
+
+      <plugin>
+        <artifactId>maven-shade-plugin</artifactId>
+        <executions>
+          <execution>
+            <phase>package</phase>
+            <goals>
+              <goal>shade</goal>
+            </goals>
+            <configuration>
+              <relocations>
+                <relocation>
+                  <pattern>javassist</pattern>
+                  <shadedPattern>io.github.jsoroka.stringagent.shaded.javassist</shadedPattern>
+                </relocation>
+              </relocations>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+
     </plugins>
   </build>
 
@@ -35,15 +72,6 @@
       <groupId>org.javassist</groupId>
       <artifactId>javassist</artifactId>
       <version>3.23.0-GA</version>
-    </dependency>
-
-    <dependency>
-      <!-- for access to com.sun.tools.attach.VirtualMachine.loadAgent(String jar) -->
-      <!-- https://stackoverflow.com/a/35250119/7433341 -->
-      <groupId>com.github.olivergondza</groupId>
-      <artifactId>maven-jdk-tools-wrapper</artifactId>
-      <version>0.1</version>
-      <scope>test</scope>
     </dependency>
 
     <dependency>

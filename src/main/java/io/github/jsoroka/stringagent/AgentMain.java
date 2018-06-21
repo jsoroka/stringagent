@@ -23,6 +23,10 @@ public class AgentMain implements ClassFileTransformer {
 
     private static ConcurrentHashMap<String,Set<String>> CODESOURCES = new ConcurrentHashMap<String,Set<String>>();
 
+    public static void premain(java.lang.String args, Instrumentation instrumentation) throws UnmodifiableClassException {
+        agentmain(args, instrumentation);
+    }
+
     public static void agentmain(String args, Instrumentation instrumentation) throws UnmodifiableClassException {
         // register ourselves as a classfile transforming agent
         instrumentation.addTransformer(new AgentMain(), true);
