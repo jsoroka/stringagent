@@ -26,9 +26,7 @@ public class TestAgentMain {
     @BeforeEach
     public void startWebServer() {
         server = Javalin.create().port(port).start();
-        server.get("/", new Handler() { @Override public void handle(Context ctx) {
-            ctx.header("X-HelloWorld", "Hello World!");
-        }});
+        server.get("/", ctx -> ctx.header("X-HelloWorld", "Hello World!"));
     }
 
     @AfterEach
@@ -60,9 +58,7 @@ public class TestAgentMain {
     @Test
     public void eachResponseShouldHaveAValidElapsedTimeHeader() throws IOException {
         final int howLongMs = 1000 + (int)(Math.random()*2000);
-        server.get("/sleep/:howLongMs", new Handler() { @Override public void handle(Context ctx) throws Exception {
-            Thread.sleep(Integer.parseInt(ctx.param("howLongMs")));
-        }});
+        server.get("/sleep/:howLongMs", ctx -> Thread.sleep(Integer.parseInt(ctx.param("howLongMs"))));
         URL url = new URL("http://localhost:" + port + "/sleep/" + howLongMs);
         long elapsedTimeNanos = Long.parseLong(url.openConnection().getHeaderField("X-StringAgent-Elapsed"));
         int elapsedTimeMs = (int)(elapsedTimeNanos/1000000);
