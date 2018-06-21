@@ -9,13 +9,19 @@ import java.io.ByteArrayInputStream;
 import java.lang.instrument.ClassFileTransformer;
 import java.lang.instrument.Instrumentation;
 import java.lang.instrument.UnmodifiableClassException;
+import java.security.CodeSource;
 import java.security.ProtectionDomain;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class AgentMain implements ClassFileTransformer {
 
     private static final String SYSPROP = "StringAgent-AllocationCounts";
+
+    private static ConcurrentHashMap<String,Set<String>> CODESOURCES = new ConcurrentHashMap<String,Set<String>>();
 
     public static void agentmain(String args, Instrumentation instrumentation) throws UnmodifiableClassException {
         // register ourselves as a classfile transforming agent
@@ -24,6 +30,8 @@ public class AgentMain implements ClassFileTransformer {
         // apply ourselves to javalin servlet class, if already loaded
         ArrayList<Class<?>> classesToRetransform = new ArrayList<Class<?>>();
         for (Class<?> clazz : instrumentation.getAllLoadedClasses()) {
+            noteClassLoad(clazz.getProtectionDomain().getCodeSource(), clazz.getName(), clazz.getMethods().length);
+
             if (clazz.getName().equals("io.javalin.core.JavalinServlet") || clazz.getName().equals("java.lang.String")) {
                 classesToRetransform.add(clazz);
             }
@@ -33,10 +41,27 @@ public class AgentMain implements ClassFileTransformer {
         }
     }
 
+    // keep track of number of loaded jars, classes and methods
+    private static void noteClassLoad(CodeSource codeSource, String className, int classMethodCount) {
+        if (codeSource != null) {
+            Set<String> newValue = Collections.synchronizedSet(new HashSet<String>());
+            Set<String> value = CODESOURCES.putIfAbsent(codeSource.getLocation().toString(), newValue);
+            if (value == null)
+                value = newValue;
+            value.add(className + '@' + classMethodCount);
+        }
+    }
+
     @Override
     public byte[] transform(ClassLoader loader, String className, Class<?> classBeingRedefined, ProtectionDomain protectionDomain, byte[] classfileBuffer) {
         try {
             ClassPool cp = ClassPool.getDefault();
+            if (classBeingRedefined == null) {
+                CtClass cc = cp.makeClass(new ByteArrayInputStream(classfileBuffer));
+                noteClassLoad(protectionDomain.getCodeSource(), cc.getName(), cc.getMethods().length);
+                cc.detach();
+            }
+
             if ("io/javalin/core/JavalinServlet".equals(className)) {
                 CtClass cc = cp.makeClass(new ByteArrayInputStream(classfileBuffer));
                 CtMethod m = cc.getDeclaredMethod("service");
@@ -47,6 +72,9 @@ public class AgentMain implements ClassFileTransformer {
                 m.insertAfter("((HttpServletResponse)$2).setHeader(\"X-StringAgent-ID\", \"\" + java.lang.Math.random());");
                 m.insertAfter("((HttpServletResponse)$2).setHeader(\"X-StringAgent-Count\", \"\" + AgentMain.getCount());");
                 m.insertAfter("((HttpServletResponse)$2).setHeader(\"X-StringAgent-Elapsed\", \"\" + AgentMain.stopTimer());");
+                m.insertAfter("((HttpServletResponse)$2).setHeader(\"X-StringAgent-JarsLoaded\", \"\" + AgentMain.getJarsLoaded());");
+                m.insertAfter("((HttpServletResponse)$2).setHeader(\"X-StringAgent-ClassesLoaded\", \"\" + AgentMain.getClassesLoaded());");
+                m.insertAfter("((HttpServletResponse)$2).setHeader(\"X-StringAgent-MethodsLoaded\", \"\" + AgentMain.getMethodsLoaded());");
                 classfileBuffer = cc.toBytecode();
                 cc.detach();
             } else if ("java/lang/String".equals(className)) {
@@ -116,5 +144,29 @@ public class AgentMain implements ClassFileTransformer {
 
     public static long stopTimer() {
         return System.nanoTime() - threadLocalTimer.get();
+    }
+
+    public static int getJarsLoaded() {
+        return CODESOURCES.size();
+    }
+
+    public static int getClassesLoaded() {
+        int result = 0;
+        ConcurrentHashMap<String,Set<String>> snapshot = new ConcurrentHashMap<String, Set<String>>(CODESOURCES);
+        for (Set<String> classes : snapshot.values())
+            result += classes.size();
+        return result;
+    }
+
+    public static int getMethodsLoaded() {
+        int result = 0;
+        ConcurrentHashMap<String,Set<String>> snapshot = new ConcurrentHashMap<String, Set<String>>(CODESOURCES);
+        for (Set<String> classes : snapshot.values()) {
+            for (String classNameAndMethodCount : classes) {
+                String methodCount = classNameAndMethodCount.substring(classNameAndMethodCount.indexOf('@') + 1);
+                result += Integer.parseInt(methodCount);
+            }
+        }
+        return result;
     }
 }

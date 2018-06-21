@@ -13,6 +13,8 @@ import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.lang.reflect.Method;
 import java.net.URL;
+import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -79,4 +81,11 @@ public class TestAgentMain {
         assertTrue(absoluteError < 500, "Asked for " + howLongMs + " but got " + elapsedTimeMs + ", error of " + absoluteError + " is more than 500ms.");
     }
 
+    @Test
+    public void eachResponseShouldSayHowManyJarsClassesAndMethodsHaveBeenLoaded() throws Exception {
+        Map<String, List<String>> headers = new URL("http://localhost:" + port).openConnection().getHeaderFields();
+        assertNotEquals(0, Integer.parseInt(headers.get("X-StringAgent-JarsLoaded").get(0)));
+        assertNotEquals(0, Integer.parseInt(headers.get("X-StringAgent-ClassesLoaded").get(0)));
+        assertNotEquals(0, Integer.parseInt(headers.get("X-StringAgent-MethodsLoaded").get(0)));
+    }
 }
