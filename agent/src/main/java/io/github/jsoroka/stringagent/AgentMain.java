@@ -121,35 +121,18 @@ public class AgentMain implements ClassFileTransformer {
     private static ThreadLocal<int[]> threadLocalAllocationCount = new ThreadLocal<int[]>();
 
     public static void clearCount() {
-        setCount(0);
+        getAllocationCountHolder()[0] = 0;
     }
 
     public static void incrementCount() {
-        setCount(getCount() + 1);
-    }
-
-    private static void setCount(int newCount) {
-        int[] count;
-        if (ON_BOOTCLASSPATH) {
-            count = threadLocalAllocationCount.get();
-            if (count == null) {
-                threadLocalAllocationCount.set(count = new int[1]);
-            }
-        } else synchronized (System.class) {
-            ConcurrentHashMap<Integer,int[]> threadMap = (ConcurrentHashMap)System.getProperties().get(SYSPROP);
-            if (threadMap == null) {
-                System.getProperties().put(SYSPROP, threadMap = new ConcurrentHashMap<Integer,int[]>());
-            }
-            int id = System.identityHashCode(Thread.currentThread());
-            count = threadMap.get(id);
-            if (count == null) {
-                threadMap.put(id, count = new int[1]);
-            }
-        }
-        count[0] = newCount;
+        getAllocationCountHolder()[0]++;
     }
 
     public static int getCount() {
+        return getAllocationCountHolder()[0];
+    }
+
+    private static int[] getAllocationCountHolder() {
         int[] count;
         if (ON_BOOTCLASSPATH) {
             count = threadLocalAllocationCount.get();
@@ -167,7 +150,7 @@ public class AgentMain implements ClassFileTransformer {
                 threadMap.put(id, count = new int[1]);
             }
         }
-        return count[0];
+        return count;
     }
 
     private static ThreadLocal<Long> threadLocalTimer = new ThreadLocal<Long>();
