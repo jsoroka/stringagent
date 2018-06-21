@@ -9,7 +9,6 @@ import java.io.ByteArrayInputStream;
 import java.lang.instrument.ClassFileTransformer;
 import java.lang.instrument.Instrumentation;
 import java.lang.instrument.UnmodifiableClassException;
-import java.security.CodeSource;
 import java.security.ProtectionDomain;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -38,7 +37,7 @@ public class AgentMain implements ClassFileTransformer {
         // apply ourselves to javalin servlet class, if already loaded
         ArrayList<Class<?>> classesToRetransform = new ArrayList<Class<?>>();
         for (Class<?> clazz : instrumentation.getAllLoadedClasses()) {
-            noteClassLoad(clazz.getProtectionDomain().getCodeSource(), clazz.getName(), clazz.getMethods().length);
+            noteClassLoad(clazz.getProtectionDomain(), clazz.getName(), clazz.getMethods().length);
 
             if (clazz.getName().equals("io.javalin.core.JavalinServlet") || clazz.getName().equals("java.lang.String")) {
                 classesToRetransform.add(clazz);
@@ -50,14 +49,16 @@ public class AgentMain implements ClassFileTransformer {
     }
 
     // keep track of number of loaded jars, classes and methods
-    private static void noteClassLoad(CodeSource codeSource, String className, int classMethodCount) {
-        if (codeSource != null) {
-            Set<String> newValue = Collections.synchronizedSet(new HashSet<String>());
-            Set<String> value = CODESOURCES.putIfAbsent(codeSource.getLocation().toString(), newValue);
-            if (value == null)
-                value = newValue;
-            value.add(className + '@' + classMethodCount);
+    private static void noteClassLoad(ProtectionDomain protectionDomain, String className, int classMethodCount) {
+        String codeSource = "";
+        if (protectionDomain != null && protectionDomain.getCodeSource() != null) {
+            codeSource = protectionDomain.getCodeSource().getLocation().toString();
         }
+        Set<String> newValue = Collections.synchronizedSet(new HashSet<String>());
+        Set<String> value = CODESOURCES.putIfAbsent(codeSource, newValue);
+        if (value == null)
+            value = newValue;
+        value.add(className + '@' + classMethodCount);
     }
 
     @Override
@@ -66,7 +67,7 @@ public class AgentMain implements ClassFileTransformer {
             ClassPool cp = ClassPool.getDefault();
             if (classBeingRedefined == null) {
                 CtClass cc = cp.makeClass(new ByteArrayInputStream(classfileBuffer));
-                noteClassLoad(protectionDomain.getCodeSource(), cc.getName(), cc.getMethods().length);
+                noteClassLoad(protectionDomain, cc.getName(), cc.getMethods().length);
                 cc.detach();
             }
 
@@ -114,6 +115,7 @@ public class AgentMain implements ClassFileTransformer {
             }
             return classfileBuffer;
         } catch (Throwable t) {
+            t.printStackTrace();
             throw new AssertionError(t);
         }
     }
