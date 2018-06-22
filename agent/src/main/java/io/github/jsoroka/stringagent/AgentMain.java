@@ -5,6 +5,8 @@ import javassist.CtClass;
 import javassist.CtConstructor;
 import javassist.CtMethod;
 
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
 import java.io.ByteArrayInputStream;
 import java.lang.instrument.ClassFileTransformer;
 import java.lang.instrument.Instrumentation;
@@ -23,6 +25,9 @@ public class AgentMain implements ClassFileTransformer {
     private static final String SYSPROP = "StringAgent-AllocationCounts";
 
     private static ConcurrentHashMap<String,Set<String>> CODESOURCES = new ConcurrentHashMap<String,Set<String>>();
+
+    private static ThreadLocal<Long> threadLocalTimer = new ThreadLocal<Long>();
+    private static ThreadLocal<int[]> threadLocalAllocationCount = new ThreadLocal<int[]>();
 
     public static void premain(java.lang.String args, Instrumentation instrumentation) throws UnmodifiableClassException {
         agentmain(args, instrumentation);
@@ -76,14 +81,8 @@ public class AgentMain implements ClassFileTransformer {
                 CtMethod m = cc.getDeclaredMethod("service");
                 cp.importPackage("javax.servlet.http");
                 cp.importPackage("io.github.jsoroka.stringagent");
-                m.insertBefore("AgentMain.clearCount();");
-                m.insertBefore("AgentMain.startTimer();");
-                m.insertAfter("((HttpServletResponse)$2).setHeader(\"X-StringAgent-ID\", \"\" + java.lang.Math.random());");
-                m.insertAfter("((HttpServletResponse)$2).setHeader(\"X-StringAgent-Count\", \"\" + AgentMain.getCount());");
-                m.insertAfter("((HttpServletResponse)$2).setHeader(\"X-StringAgent-Elapsed\", \"\" + AgentMain.stopTimer());");
-                m.insertAfter("((HttpServletResponse)$2).setHeader(\"X-StringAgent-JarsLoaded\", \"\" + AgentMain.getJarsLoaded());");
-                m.insertAfter("((HttpServletResponse)$2).setHeader(\"X-StringAgent-ClassesLoaded\", \"\" + AgentMain.getClassesLoaded());");
-                m.insertAfter("((HttpServletResponse)$2).setHeader(\"X-StringAgent-MethodsLoaded\", \"\" + AgentMain.getMethodsLoaded());");
+                m.insertBefore("AgentMain.beforeRequest($0, (HttpServletRequest)$1, (HttpServletResponse)$2);");
+                m.insertAfter("AgentMain.afterRequest($0, (HttpServletRequest)$1, (HttpServletResponse)$2);", true);
                 classfileBuffer = cc.toBytecode();
                 cc.detach();
             } else if ("java/lang/String".equals(className)) {
@@ -94,7 +93,7 @@ public class AgentMain implements ClassFileTransformer {
                         continue;
                     }
                     if (ON_BOOTCLASSPATH) {
-                        ctor.insertAfter("io.github.jsoroka.stringagent.AgentMain.incrementCount();");
+                        ctor.insertAfter("io.github.jsoroka.stringagent.AgentMain.getStringAllocationCount()[0]++;");
                     } else {
                         ctor.insertAfter("synchronized (System.class) { " +
                             "ConcurrentHashMap threadMap = (ConcurrentHashMap)" +
@@ -120,21 +119,7 @@ public class AgentMain implements ClassFileTransformer {
         }
     }
 
-    private static ThreadLocal<int[]> threadLocalAllocationCount = new ThreadLocal<int[]>();
-
-    public static void clearCount() {
-        getAllocationCountHolder()[0] = 0;
-    }
-
-    public static void incrementCount() {
-        getAllocationCountHolder()[0]++;
-    }
-
-    public static int getCount() {
-        return getAllocationCountHolder()[0];
-    }
-
-    private static int[] getAllocationCountHolder() {
+    private static int[] getStringAllocationCount() {
         int[] count;
         if (ON_BOOTCLASSPATH) {
             count = threadLocalAllocationCount.get();
@@ -153,16 +138,6 @@ public class AgentMain implements ClassFileTransformer {
             }
         }
         return count;
-    }
-
-    private static ThreadLocal<Long> threadLocalTimer = new ThreadLocal<Long>();
-
-    public static void startTimer() {
-        threadLocalTimer.set(System.nanoTime());
-    }
-
-    public static long stopTimer() {
-        return System.nanoTime() - threadLocalTimer.get();
     }
 
     public static int getJarsLoaded() {
@@ -185,5 +160,19 @@ public class AgentMain implements ClassFileTransformer {
             }
         }
         return result;
+    }
+
+    public static void beforeRequest(Object thiz, HttpServletRequest request, HttpServletResponse response) {
+        threadLocalTimer.set(System.nanoTime());
+        getStringAllocationCount()[0] = 0;
+    }
+
+    public static void afterRequest(Object thiz, HttpServletRequest request, HttpServletResponse response) {
+        response.setHeader("X-StringAgent-ID", "" + java.lang.Math.random());
+        response.setHeader("X-StringAgent-Count", "" + getStringAllocationCount()[0]);
+        response.setHeader("X-StringAgent-Elapsed", "" + (System.nanoTime() - threadLocalTimer.get()));
+        response.setHeader("X-StringAgent-JarsLoaded", "" + getJarsLoaded());
+        response.setHeader("X-StringAgent-ClassesLoaded", "" + getClassesLoaded());
+        response.setHeader("X-StringAgent-MethodsLoaded", "" + getMethodsLoaded());
     }
 }
