@@ -11,6 +11,10 @@ optionally, to a [statsd](https://github.com/etsy/statsd) endpoint.
 
 I am applying for a job that involves maintenance of a javaagent and this sample project aims to show that I can help.
 
+## Requirements
+
+The agent requires no more than Java6, but Javalin itself requires Java8, as does the version of JUnit we are using.  Expanding the support matrix is a TODO.
+
 ## Usage
 
 `java -javaagent:/path/to/stringagent-agent-1.0-SNAPSHOT.jar[=statsd=hostname:port] ...`
@@ -29,4 +33,4 @@ I am applying for a job that involves maintenance of a javaagent and this sample
   * run all tests with post-startup runtime attaching of agent
   * add mock statsd server to test stats reporting
   * add more frameworks than just Javalin
-  * setup test harness for JDK 6,7,8,9,10
+  * downgrade junit version to support JDK versions <= 7
