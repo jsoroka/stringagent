@@ -4,6 +4,8 @@ import javassist.ClassPool;
 import javassist.CtClass;
 import javassist.CtConstructor;
 import javassist.CtMethod;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
@@ -19,6 +21,8 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class AgentMain implements ClassFileTransformer {
+
+    private static Logger logger = LoggerFactory.getLogger(AgentMain.class);
 
     private static final boolean ON_BOOTCLASSPATH = AgentMain.class.getClassLoader() == null;
 
@@ -172,9 +176,14 @@ public class AgentMain implements ClassFileTransformer {
     }
 
     public static void afterRequest(Object thiz, HttpServletRequest request, HttpServletResponse response) {
-        response.setHeader("X-StringAgent-ID", "" + threadLocalRequestId.get());
-        response.setHeader("X-StringAgent-Count", "" + getStringAllocationCount()[0]);
-        response.setHeader("X-StringAgent-Elapsed", "" + (System.nanoTime() - threadLocalTimer.get()));
+        int numberOfStringAllocations = getStringAllocationCount()[0];
+        long elapsedTime = System.nanoTime() - threadLocalTimer.get();
+        long requestId = threadLocalRequestId.get();
+        logger.debug(requestId + ": " + numberOfStringAllocations + ", " + elapsedTime);
+
+        response.setHeader("X-StringAgent-ID", "" + requestId);
+        response.setHeader("X-StringAgent-Count", "" + numberOfStringAllocations);
+        response.setHeader("X-StringAgent-Elapsed", "" + elapsedTime);
         response.setHeader("X-StringAgent-JarsLoaded", "" + getJarsLoaded());
         response.setHeader("X-StringAgent-ClassesLoaded", "" + getClassesLoaded());
         response.setHeader("X-StringAgent-MethodsLoaded", "" + getMethodsLoaded());
