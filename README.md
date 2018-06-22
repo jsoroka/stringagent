@@ -1,5 +1,7 @@
 # StringAgent
 
+[![Build Status](https://travis-ci.org/jsoroka/stringagent.svg?branch=master)](https://travis-ci.org/jsoroka/stringagent)
+
 StringAgent monitors requests to a [Javalin](https://javalin.io) server and uses [javassist](https://www.javassist.org) 
 to count the number of `java.lang.String` allocations that occur while a [`service`](
 https://github.com/tipsy/javalin/blob/8dc1db566f9076762bccef91bc1dc874822f8669/src/main/java/io/javalin/core/JavalinServlet.kt#L40) 
