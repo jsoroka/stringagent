@@ -6,6 +6,9 @@ import javassist.CtConstructor;
 import javassist.CtMethod;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import tech.energyit.statsd.FastStatsDClient;
+import tech.energyit.statsd.StatsDClient;
+import tech.energyit.statsd.SynchronousSender;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
@@ -24,6 +27,11 @@ public class AgentMain implements ClassFileTransformer {
 
     private static Logger logger = LoggerFactory.getLogger(AgentMain.class);
 
+    private static StatsDClient statsd = null;
+    private static final byte[] STATSD_ELAPSED = "StringAgent-Elapsed".getBytes();
+    private static final byte[] STATSD_COUNT = "StringAgent-Count".getBytes();
+    private static final byte[] STATSD_HELLO = "StringAgent-Hello".getBytes();
+
     private static final boolean ON_BOOTCLASSPATH = AgentMain.class.getClassLoader() == null;
 
     private static final String SYSPROP = "StringAgent-AllocationCounts";
@@ -41,12 +49,24 @@ public class AgentMain implements ClassFileTransformer {
     public static void agentmain(String args, Instrumentation instrumentation) throws UnmodifiableClassException {
         if (!ON_BOOTCLASSPATH) { /* TODO warn about degraded performance, give diagnosis and suggested fixes */ }
 
+        Class[] allLoadedClasses = instrumentation.getAllLoadedClasses();
+
+        for (String arg : (args+"").split(";")) {
+            if (arg.startsWith("statsd=")) {
+                String hostname = arg.substring("statsd=".length(), arg.indexOf(':'));
+                int port = Integer.parseInt(arg.substring(args.indexOf(':') + 1));
+                statsd = new FastStatsDClient(new SynchronousSender(hostname, port));
+                // send one value to statsd immediately, to ensure that specified hostname:port is valid.
+                statsd.gauge(STATSD_HELLO, allLoadedClasses.length);
+            }
+        }
+
         // register ourselves as a classfile transforming agent
         instrumentation.addTransformer(new AgentMain(), true);
 
         // apply ourselves to javalin servlet class, if already loaded
         ArrayList<Class<?>> classesToRetransform = new ArrayList<Class<?>>();
-        for (Class<?> clazz : instrumentation.getAllLoadedClasses()) {
+        for (Class<?> clazz : allLoadedClasses) {
             noteClassLoad(clazz.getProtectionDomain(), clazz.getName(), clazz.getMethods().length);
 
             if (clazz.getName().equals("io.javalin.core.JavalinServlet") || clazz.getName().equals("java.lang.String")) {
@@ -180,7 +200,10 @@ public class AgentMain implements ClassFileTransformer {
         long elapsedTime = System.nanoTime() - threadLocalTimer.get();
         long requestId = threadLocalRequestId.get();
         logger.debug(requestId + ": " + numberOfStringAllocations + ", " + elapsedTime);
-
+        if (statsd != null) {
+            statsd.time(STATSD_ELAPSED, elapsedTime/1000000);
+            statsd.gauge(STATSD_COUNT, numberOfStringAllocations);
+        }
         response.setHeader("X-StringAgent-ID", "" + requestId);
         response.setHeader("X-StringAgent-Count", "" + numberOfStringAllocations);
         response.setHeader("X-StringAgent-Elapsed", "" + elapsedTime);

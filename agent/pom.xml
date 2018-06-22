@@ -50,6 +50,10 @@
                   <pattern>javassist</pattern>
                   <shadedPattern>io.github.jsoroka.stringagent.shaded.javassist</shadedPattern>
                 </relocation>
+                <relocation>
+                  <pattern>tech.energyit.statsd</pattern>
+                  <shadedPattern>io.github.jsoroka.stringagent.shaded.faststatsd</shadedPattern>
+                </relocation>
               </relocations>
             </configuration>
           </execution>
@@ -64,6 +68,12 @@
       <groupId>org.javassist</groupId>
       <artifactId>javassist</artifactId>
       <version>3.23.0-GA</version>
+    </dependency>
+
+    <dependency>
+      <groupId>tech.energyit</groupId>
+      <artifactId>fast-java-statsd-client</artifactId>
+      <version>0.5</version>
     </dependency>
 
     <dependency>
