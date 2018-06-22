@@ -27,6 +27,7 @@ public class AgentMain implements ClassFileTransformer {
     private static ConcurrentHashMap<String,Set<String>> CODESOURCES = new ConcurrentHashMap<String,Set<String>>();
 
     private static ThreadLocal<Long> threadLocalTimer = new ThreadLocal<Long>();
+    private static ThreadLocal<Long> threadLocalRequestId = new ThreadLocal<Long>();
     private static ThreadLocal<int[]> threadLocalAllocationCount = new ThreadLocal<int[]>();
 
     public static void premain(java.lang.String args, Instrumentation instrumentation) throws UnmodifiableClassException {
@@ -164,11 +165,14 @@ public class AgentMain implements ClassFileTransformer {
 
     public static void beforeRequest(Object thiz, HttpServletRequest request, HttpServletResponse response) {
         threadLocalTimer.set(System.nanoTime());
+        long requestId = System.currentTimeMillis()<<32 + (int)(Integer.MAX_VALUE * Math.random());
+        threadLocalRequestId.set(requestId);
+        request.setAttribute("X-StringAgent-ID", requestId);
         getStringAllocationCount()[0] = 0;
     }
 
     public static void afterRequest(Object thiz, HttpServletRequest request, HttpServletResponse response) {
-        response.setHeader("X-StringAgent-ID", "" + java.lang.Math.random());
+        response.setHeader("X-StringAgent-ID", "" + threadLocalRequestId.get());
         response.setHeader("X-StringAgent-Count", "" + getStringAllocationCount()[0]);
         response.setHeader("X-StringAgent-Elapsed", "" + (System.nanoTime() - threadLocalTimer.get()));
         response.setHeader("X-StringAgent-JarsLoaded", "" + getJarsLoaded());
